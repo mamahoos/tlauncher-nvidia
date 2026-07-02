@@ -1,0 +1,10 @@
+[Desktop Entry]
+Version=1.0
+Type=Application
+Name=TLauncher (NVIDIA)
+Comment=Run TLauncher with NVIDIA PRIME offload
+Exec=@BIN@/tlauncher-nvidia
+Icon=tlauncher.png
+Terminal=false
+Path=/usr/games/tlauncher
+Categories=Game;
