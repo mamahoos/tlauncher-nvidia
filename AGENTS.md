@@ -1,34 +1,41 @@
 # Agent context: tlauncher-nvidia
 
-## What this project does
-Bash wrapper that launches TLauncher with NVIDIA PRIME render offload on Linux hybrid-GPU laptops. No system-wide driver changes.
+## Summary
 
-## Tech stack
-- Bash (`tlauncher-nvidia`, `install.sh`, `uninstall.sh`)
-- Freedesktop `.desktop` entry
-- GitHub Actions + ShellCheck for CI
+Bash wrapper that launches TLauncher with NVIDIA PRIME render offload on Linux hybrid-GPU laptops. Changes are scoped to the TLauncher process tree only.
 
 ## Commands
+
 | Command | Description |
 |---------|-------------|
 | `./install.sh` | Install to `~/.local/bin` and app menu |
 | `./uninstall.sh` | Remove installed files |
-| `~/.local/bin/tlauncher-nvidia --check` | Validate prerequisites |
-| `shellcheck *.sh tlauncher-nvidia` | Lint bash scripts |
+| `tlauncher-nvidia --check` | Validate prerequisites |
+| `./tests/smoke.sh` | Smoke tests |
+| `shellcheck tlauncher-nvidia install.sh uninstall.sh tests/smoke.sh` | Lint |
 
 ## Conventions
+
 - Bash style matches `~/dev/personal/dot-files/scripts/`: section headers, `readonly` config, `_prefix_*` helpers, `main "$@"`
-- Keep scripts minimal; prefer guard clauses over deep nesting
-- User-facing errors via `printf '[script] ...\n'` to stderr; `--check` status via `ok` / `fail` / `warn` lines
-- Override paths via `TL_JAVA`, `TL_JAR`, `TL_NVIDIA_PROVIDER`
-- Default TLauncher install: `/usr/games/tlauncher/...`
+- Errors: `printf '[script] ...\n'` to stderr; `--check` uses `ok` / `fail` / `warn` lines
+- Overrides: `TL_JAVA`, `TL_JAR`, `TL_NVIDIA_PROVIDER`
+- Default TLauncher paths: `/usr/games/tlauncher/...`
 
 ## Boundaries
+
 - Do not change system GLX or global NVIDIA settings
 - Do not commit secrets or user-specific paths
-- Architectural rationale lives in `docs/decisions/`
+- Architectural decisions: `docs/decisions/`
 
 ## Key files
-- `tlauncher-nvidia` — main launcher with `--check` and provider auto-detect
-- `install.sh` / `uninstall.sh` — user-local install lifecycle
-- `tlauncher-nvidia.desktop` — app menu entry (`StartupWMClass=tlauncher`)
+
+| File | Role |
+|------|------|
+| `tlauncher-nvidia` | Launcher, `--check`, provider auto-detect |
+| `install.sh` / `uninstall.sh` | User-local install lifecycle |
+| `tlauncher-nvidia.desktop` | App menu entry |
+| `docs/decisions/001-prime-render-offload.md` | PRIME offload ADR |
+
+## About
+
+Developed with [Cursor](https://cursor.com).
