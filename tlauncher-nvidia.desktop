@@ -8,3 +8,5 @@ Icon=tlauncher.png
 Terminal=false
 Path=/usr/games/tlauncher
 Categories=Game;
+StartupWMClass=tlauncher
+Keywords=minecraft;nvidia;tlauncher;game;gpu;
