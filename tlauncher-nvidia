@@ -1,13 +1,179 @@
 #!/usr/bin/env bash
-# Launch TLauncher with NVIDIA PRIME render offload on hybrid-GPU laptops.
-# Does not change system drivers or global GLX settings.
+set -euo pipefail
 
-export __NV_PRIME_RENDER_OFFLOAD=1
-export __NV_PRIME_RENDER_OFFLOAD_PROVIDER="${TL_NVIDIA_PROVIDER:-NVIDIA-G0}"
-export __GLX_VENDOR_LIBRARY_NAME=nvidia
-export __VK_LAYER_NV_optimus=NVIDIA_only
+# ==============================================================================
+# CONFIG
+# ==============================================================================
 
-TL_JAVA="${TL_JAVA:-/usr/games/tlauncher/lib/jvm/jre/bin/java}"
-TL_JAR="${TL_JAR:-/usr/games/tlauncher/starter-core.jar}"
+readonly SCRIPT_NAME="${0##*/}"
+readonly DEFAULT_JAVA='/usr/games/tlauncher/lib/jvm/jre/bin/java'
+readonly DEFAULT_JAR='/usr/games/tlauncher/starter-core.jar'
+readonly DEFAULT_PROVIDER='NVIDIA-G0'
 
-exec "$TL_JAVA" -Dfile.encoding=UTF8 -jar "$TL_JAR" "$@"
+TL_JAVA="${TL_JAVA:-$DEFAULT_JAVA}"
+TL_JAR="${TL_JAR:-$DEFAULT_JAR}"
+
+# ==============================================================================
+# LOGGING
+# ==============================================================================
+
+_tnv_error() {
+  printf '[%s] %s\n' "$SCRIPT_NAME" "$*" >&2
+}
+
+_tnv_ok() {
+  printf 'ok   %s\n' "$*"
+}
+
+_tnv_fail() {
+  printf 'fail %s\n' "$*" >&2
+}
+
+_tnv_warn() {
+  printf 'warn %s\n' "$*" >&2
+}
+
+# ==============================================================================
+# USAGE
+# ==============================================================================
+
+_tnv_usage() {
+  cat <<EOF
+Usage: $SCRIPT_NAME [--check | --help]
+
+Launch TLauncher on the discrete NVIDIA GPU (PRIME render offload).
+
+Options:
+  --check   Validate prerequisites without starting TLauncher
+  --help    Show this help
+
+Environment:
+  TL_JAVA              Path to TLauncher Java binary
+  TL_JAR               Path to starter-core.jar
+  TL_NVIDIA_PROVIDER   XRandR provider name (auto-detected when unset)
+EOF
+}
+
+# ==============================================================================
+# PROVIDER DETECTION
+# ==============================================================================
+
+_tnv_detect_provider() {
+  local detected=''
+
+  if [[ -n "${TL_NVIDIA_PROVIDER:-}" ]]; then
+    printf '%s' "$TL_NVIDIA_PROVIDER"
+    return 0
+  fi
+
+  if command -v xrandr >/dev/null 2>&1; then
+    detected="$(
+      xrandr --listproviders 2>/dev/null \
+        | awk -F'name:' '/name:.*NVIDIA/ {gsub(/^[[:space:]]+/, "", $2); print $2; exit}'
+    )"
+  fi
+
+  printf '%s' "${detected:-$DEFAULT_PROVIDER}"
+}
+
+# ==============================================================================
+# VALIDATION
+# ==============================================================================
+
+_tnv_check_java() {
+  if [[ -x "$TL_JAVA" ]]; then
+    _tnv_ok "Java: $TL_JAVA"
+    return 0
+  fi
+
+  _tnv_fail "Java not found or not executable: $TL_JAVA (set TL_JAVA)"
+  return 1
+}
+
+_tnv_check_jar() {
+  if [[ -f "$TL_JAR" ]]; then
+    _tnv_ok "JAR: $TL_JAR"
+    return 0
+  fi
+
+  _tnv_fail "JAR not found: $TL_JAR (set TL_JAR)"
+  return 1
+}
+
+_tnv_check_provider() {
+  local provider
+  provider="$(_tnv_detect_provider)"
+
+  if command -v xrandr >/dev/null 2>&1; then
+    if xrandr --listproviders 2>/dev/null | grep -q "$provider"; then
+      _tnv_ok "Provider: $provider"
+      return 0
+    fi
+
+    _tnv_warn "Provider '$provider' not listed by xrandr"
+    _tnv_warn "Run: xrandr --listproviders"
+    return 0
+  fi
+
+  _tnv_warn "xrandr not found; using provider $provider"
+}
+
+_tnv_check_driver() {
+  if command -v nvidia-smi >/dev/null 2>&1; then
+    _tnv_ok 'nvidia-smi available'
+    return 0
+  fi
+
+  _tnv_warn 'nvidia-smi not found; NVIDIA driver may be missing'
+}
+
+_tnv_check_prerequisites() {
+  local status=0
+
+  _tnv_check_java || status=1
+  _tnv_check_jar || status=1
+  _tnv_check_provider
+  _tnv_check_driver
+
+  return "$status"
+}
+
+# ==============================================================================
+# LAUNCH
+# ==============================================================================
+
+_tnv_apply_env() {
+  local provider=''
+  provider="$(_tnv_detect_provider)"
+
+  export __NV_PRIME_RENDER_OFFLOAD=1
+  export __NV_PRIME_RENDER_OFFLOAD_PROVIDER="$provider"
+  export __GLX_VENDOR_LIBRARY_NAME=nvidia
+  export __VK_LAYER_NV_optimus=NVIDIA_only
+}
+
+_tnv_launch() {
+  _tnv_check_prerequisites || return $?
+  _tnv_apply_env
+  exec "$TL_JAVA" -Dfile.encoding=UTF8 -jar "$TL_JAR" "$@"
+}
+
+# ==============================================================================
+# MAIN
+# ==============================================================================
+
+main() {
+  case "${1:-}" in
+  --help | -h)
+    _tnv_usage
+    ;;
+  --check)
+    _tnv_check_prerequisites
+    ;;
+  *)
+    _tnv_launch "$@"
+    ;;
+  esac
+}
+
+main "$@"
